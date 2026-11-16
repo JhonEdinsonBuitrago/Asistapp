@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "461598207031",
+    "project_id": "asistapp-dev-1b162",
+    "storage_bucket": "asistapp-dev-1b162.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:461598207031:android:96b19c216a75a4ee7863b2",
+        "android_client_info": {
+          "package_name": "com.example.asis_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWwNTa9EuCIrfW3TvWBOnZBzAbTVWVAig"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
