@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/name_utils.dart';
-import '../../student/data/student_mock_data.dart';
 import '../data/attendance_models.dart';
 
 const _teal = Color(0xFF066A5C);
@@ -49,21 +48,25 @@ class AttendanceSuccessView extends StatelessWidget {
   const AttendanceSuccessView({
     super.key,
     required this.courseId,
-    this.courseName,
     required this.sessionId,
     required this.claim,
     required this.onBack,
     required this.onDetails,
+    this.courseName,
+    this.courseCode,
+    this.teacherName,
     this.room,
   });
 
   final String courseId;
-  final String? courseName;
   final String sessionId;
-  final String? room;
   final ClaimInfo claim;
   final VoidCallback onBack;
   final VoidCallback onDetails;
+  final String? courseName;
+  final String? courseCode;
+  final String? teacherName;
+  final String? room;
 
   /// Si el registro llegó con conexión, la hora del servidor es la confiable.
   DateTime get _when => (claim.timeVerified && claim.syncedAt != null)
@@ -72,44 +75,8 @@ class AttendanceSuccessView extends StatelessWidget {
           claim.scannedAt + claim.clockOffsetMs,
         );
 
-  /// Comprobante visual (no se guarda en Firestore).
-  String get _reference {
-    var h = 7;
-    for (final u in '${claim.studentId}:$sessionId'.codeUnits) {
-      h = (h * 31 + u) % 10000;
-    }
-    return 'AST-${h.toString().padLeft(4, '0')}-OK';
-  }
-
-  // DATOS DE EJEMPLO: se calcula con el curso de student_mock_data.dart.
-  // Cuando existan asistencias reales en Firestore, se reemplaza por ellas.
-  ({int percent, int delta, int attended, int total})? _metric(
-    CourseDetail? d,
-  ) {
-    if (d == null || d.scheduled <= 0) return null;
-    final before = (d.attended * 100 / d.scheduled).round();
-    final attended = d.attended + 1 > d.scheduled
-        ? d.scheduled
-        : d.attended + 1;
-    final after = (attended * 100 / d.scheduled).round();
-    return (
-      percent: after,
-      delta: after - before,
-      attended: attended,
-      total: d.scheduled,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final course = courseDetailById(courseId);
-    final when = _when;
-    final online = claim.timeVerified;
-    final metric = _metric(course);
-    final sensor = claim.method == 'qr'
-        ? 'QR dinámico validado'
-        : 'Código manual validado';
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -119,7 +86,27 @@ class AttendanceSuccessView extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
-                _topBar(context),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: onBack,
+                      icon: const Icon(Icons.close, color: AppColors.navy),
+                    ),
+                    SizedBox(
+                      width: 36,
+                      height: 30,
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.school,
+                          color: AppColors.navy,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 18),
                 Center(child: _hero()),
                 const SizedBox(height: 22),
@@ -143,7 +130,7 @@ class AttendanceSuccessView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _card(context, course, when, online, metric, sensor),
+                _card(context),
                 const SizedBox(height: 18),
                 FilledButton.icon(
                   onPressed: onBack,
@@ -161,55 +148,11 @@ class AttendanceSuccessView extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Icon(
-                  Icons.lock_outline,
-                  size: 16,
-                  color: AppColors.textMuted,
-                ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _topBar(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          icon: const Icon(Icons.close, color: AppColors.navy),
-        ),
-        SizedBox(
-          width: 36,
-          height: 30,
-          child: Image.asset(
-            'assets/images/logo.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.school, color: AppColors.navy, size: 26),
-          ),
-        ),
-        const Spacer(),
-        Material(
-          color: AppColors.navy,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () => ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                const SnackBar(content: Text('Perfil (próximamente)')),
-              ),
-            child: const Padding(
-              padding: EdgeInsets.all(9),
-              child: Icon(Icons.person, size: 20, color: Colors.white),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -238,14 +181,14 @@ class AttendanceSuccessView extends StatelessWidget {
     );
   }
 
-  Widget _card(
-    BuildContext context,
-    CourseDetail? course,
-    DateTime when,
-    bool online,
-    ({int percent, int delta, int attended, int total})? metric,
-    String sensor,
-  ) {
+  Widget _card(BuildContext context) {
+    final when = _when;
+    final online = claim.timeVerified;
+    final sensor = claim.method == 'qr'
+        ? 'QR dinámico validado'
+        : 'Código manual validado';
+    final teacher = (teacherName ?? '').trim();
+    final code = (courseCode ?? '').trim();
     final roomName = room;
 
     return Container(
@@ -325,7 +268,7 @@ class AttendanceSuccessView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    course?.name ?? courseName ?? 'Clase',
+                    (courseName ?? '').isEmpty ? 'Clase' : courseName!,
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -333,10 +276,10 @@ class AttendanceSuccessView extends StatelessWidget {
                       height: 1.15,
                     ),
                   ),
-                  if (course != null) ...[
+                  if (code.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '${course.code} • Grupo ${course.group}',
+                      code,
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textMuted,
@@ -352,11 +295,11 @@ class AttendanceSuccessView extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        if (course != null) ...[
+                        if (teacher.isNotEmpty) ...[
                           _DetailRow(
                             icon: Icons.school_outlined,
-                            label: 'DOCENTE TITULAR',
-                            value: course.teacherName,
+                            label: 'DOCENTE',
+                            value: 'Prof. $teacher',
                           ),
                           const SizedBox(height: 14),
                         ],
@@ -371,18 +314,21 @@ class AttendanceSuccessView extends StatelessWidget {
                           const SizedBox(height: 14),
                           _DetailRow(
                             icon: Icons.near_me_outlined,
-                            label: 'UBICACIÓN Y SENSOR',
+                            label: 'AULA Y MÉTODO',
                             value: roomName,
                             extra: '($sensor)',
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 14),
+                          _DetailRow(
+                            icon: Icons.fact_check_outlined,
+                            label: 'MÉTODO',
+                            value: sensor,
                           ),
                         ],
                       ],
                     ),
                   ),
-                  if (metric != null) ...[
-                    const SizedBox(height: 14),
-                    _metricBlock(metric),
-                  ],
                   const SizedBox(height: 14),
                   const Divider(height: 1, color: Color(0xFFE6ECF7)),
                   const SizedBox(height: 10),
@@ -396,27 +342,28 @@ class AttendanceSuccessView extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'REFERENCIA: $_reference',
+                          'SESIÓN: $sessionId',
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: 0.4,
+                            letterSpacing: 0.3,
                             color: AppColors.textMuted,
                           ),
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Copiar referencia',
+                        tooltip: 'Copiar identificador',
                         onPressed: () async {
                           await Clipboard.setData(
-                            ClipboardData(text: _reference),
+                            ClipboardData(text: sessionId),
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context)
                               ..hideCurrentSnackBar()
                               ..showSnackBar(
                                 const SnackBar(
-                                  content: Text('Referencia copiada'),
+                                  content: Text('Identificador copiado'),
                                 ),
                               );
                           }
@@ -434,82 +381,6 @@ class AttendanceSuccessView extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _metricBlock(({int percent, int delta, int attended, int total}) m) {
-    final change = m.delta > 0
-        ? 'Tu asistencia subió +${m.delta}% con este registro'
-        : 'Tu asistencia se mantiene';
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(
-        color: _panel,
-        borderRadius: BorderRadius.all(Radius.circular(18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.trending_up, size: 18, color: AppColors.green),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Métrica de Asistencia',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.navy,
-                  ),
-                ),
-              ),
-              Text(
-                '${m.percent}%',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: m.percent / 100,
-              minHeight: 8,
-              color: _teal,
-              backgroundColor: const Color(0xFFD5E0F2),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  change,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${m.attended} de ${m.total} clases',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.navy,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

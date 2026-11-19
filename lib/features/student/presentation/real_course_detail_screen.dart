@@ -12,7 +12,7 @@ import '../../attendance/data/attendance_models.dart';
 import '../../attendance/data/attendance_repository.dart';
 import '../../teacher/data/course_repository.dart' show modalityTitle;
 import '../data/student_courses_data.dart';
-import 'widgets/course_detail_widgets.dart' show DetailOptionTile;
+import '../../../core/widgets/detail_option_tile.dart';
 import '../../justifications/data/justification_data.dart';
 
 const _teal = Color(0xFF066A5C);

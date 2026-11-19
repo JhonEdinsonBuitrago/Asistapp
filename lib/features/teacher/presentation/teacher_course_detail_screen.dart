@@ -9,7 +9,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/name_utils.dart';
 import '../data/course_repository.dart';
 import '../data/teacher_course_detail_data.dart';
-import '../data/teacher_mock_data.dart';
 
 const _teal = Color(0xFF066A5C);
 const _mint = Color(0xFFD7F5EA);
@@ -81,8 +80,6 @@ class _TeacherCourseDetailScreenState
 
   /// Busca el curso entre los de ejemplo y los reales.
   CourseDetailVm? _resolve() {
-    final sample = sampleCourseDetail(widget.courseId, DateTime.now());
-    if (sample != null) return sample;
     final real = ref
         .watch(myCoursesProvider)
         .value

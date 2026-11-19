@@ -293,9 +293,6 @@ class _CourseStatsScreenState extends ConsumerState<CourseStatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sample = sampleCourseStats(widget.courseId, DateTime.now());
-    if (sample != null) return _scaffold(_content(sample));
-
     final coursesAsync = ref.watch(myCoursesProvider);
     final course = coursesAsync.value
         ?.where((c) => c.id == widget.courseId)

@@ -14,15 +14,10 @@ import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/auth/presentation/welcome_screen.dart';
-import '../features/home/presentation/home_screen.dart';
 import '../features/student/presentation/student_shell.dart';
-import '../features/student/presentation/course_detail_screen.dart';
 import '../features/attendance/presentation/attendance_saved_screen.dart';
-import '../features/student/presentation/attendance_history_screen.dart';
 import '../features/attendance/presentation/scan_qr_screen.dart';
 import '../features/attendance/presentation/teacher_qr_screen.dart';
-import '../features/student/data/attendance_history_data.dart';
-import '../features/student/data/student_mock_data.dart';
 import '../features/student/presentation/real_course_detail_screen.dart';
 import '../features/student/presentation/real_history_screen.dart';
 import '../features/justifications/presentation/student_justifications_screen.dart';
@@ -98,12 +93,8 @@ final appRouter = GoRouter(
 
     GoRoute(
       path: '/student/course/:id/history',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return historyFor(id) != null
-            ? AttendanceHistoryScreen(courseId: id)
-            : RealHistoryScreen(courseId: id);
-      },
+      builder: (context, state) =>
+          RealHistoryScreen(courseId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/student/course/:id/saved',
@@ -131,13 +122,8 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/student/course/:id',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        // Los cursos de ejemplo usan la pantalla de ejemplo; los reales, la real.
-        return courseDetailById(id) != null
-            ? CourseDetailScreen(courseId: id)
-            : RealCourseDetailScreen(courseId: id);
-      },
+      builder: (context, state) =>
+          RealCourseDetailScreen(courseId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/teacher',

@@ -10,7 +10,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../teacher/data/course_repository.dart';
 import '../../teacher/data/enrollment_repository.dart';
-import '../../teacher/data/teacher_course_detail_data.dart';
 import '../data/attendance_models.dart';
 import '../data/attendance_repository.dart';
 import '../data/claim_validator.dart';
@@ -399,8 +398,6 @@ class _TeacherQrScreenState extends ConsumerState<TeacherQrScreen> {
   // --------------------------- Datos de la sesión ---------------------------
 
   int _enrolledFor(LocalSession s) {
-    final sample = sampleCourseDetail(s.courseId, DateTime.now());
-    if (sample != null) return sample.students.length;
     return ref.watch(enrolledStudentsProvider(s.courseId)).value?.length ?? 0;
   }
 
@@ -411,7 +408,7 @@ class _TeacherQrScreenState extends ConsumerState<TeacherQrScreen> {
         ?.where((c) => c.id == s.courseId)
         .firstOrNull;
     if (real != null) return modalityTitle(real.modality).toUpperCase();
-    return 'PRESENCIAL TEÓRICO-PRÁCTICA'; // cursos de ejemplo
+    return 'SESIÓN DE CLASE';
   }
 
   String _ago(ClaimInfo c, int nowMs) {

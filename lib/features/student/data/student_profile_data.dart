@@ -2,11 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// DATOS DE EJEMPLO: se reemplazarán cuando el programa y el ciclo del
-// estudiante existan en Firestore.
-const sampleStudentProgram = 'Ingeniería de Software';
-const sampleStudentCycle = '2025-I';
-
 class StudentProfileData {
   const StudentProfileData({
     required this.name,

@@ -14,7 +14,7 @@ import '../../student/data/student_profile_data.dart';
 import '../../student/presentation/profile_tab.dart'
     show showInfoDialog, showSupportDialog;
 import '../data/course_repository.dart';
-import '../data/teacher_mock_data.dart';
+import '../data/teacher_overview_data.dart';
 
 const _teal = Color(0xFF066A5C);
 const _mint = Color(0xFFD7F5EA);
@@ -158,11 +158,10 @@ class TeacherProfileTab extends ConsumerWidget {
     final phone = profile?.phone;
 
     // Mismas cifras que el home: cursos de ejemplo + cursos reales.
-    final courses =
-        sampleTeacherCourses.length + real.where((c) => !c.isDraft).length;
-    final students =
-        sampleTeacherCourses.fold<int>(0, (s, c) => s + c.students) +
-        real.fold<int>(0, (s, c) => s + c.studentCount);
+    final courses = real.where((c) => !c.isDraft).length;
+    final students = real.fold<int>(0, (s, c) => s + c.studentCount);
+    final overview = ref.watch(teacherOverviewProvider).value;
+    final attendance = overview?.attendance;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -200,8 +199,10 @@ class TeacherProfileTab extends ConsumerWidget {
                 child: _StatTile(
                   icon: Icons.insights_outlined,
                   iconBg: _mint,
-                  value: '${sampleTeacher.globalAttendance}',
-                  suffix: '%',
+                  value: attendance == null
+                      ? '—'
+                      : attendance.toStringAsFixed(1),
+                  suffix: attendance == null ? null : '%',
                   label: 'Asistencia Prom.',
                 ),
               ),
@@ -458,7 +459,7 @@ class _HeaderCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    'Docente • ${sampleTeacher.department}',
+                    'Docente',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 12.5,

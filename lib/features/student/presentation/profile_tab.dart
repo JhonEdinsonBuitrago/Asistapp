@@ -11,7 +11,6 @@ import '../../../core/utils/name_utils.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/notifications_data.dart';
-import '../data/student_mock_data.dart';
 import '../data/student_profile_data.dart';
 import '../data/student_courses_data.dart';
 
@@ -184,20 +183,11 @@ class ProfileTab extends ConsumerWidget {
 
     // Datos reales si el estudiante tiene cursos; si no, datos de ejemplo.
     final overview = ref.watch(studentOverviewProvider).value;
-    final hasReal = (overview?.courses.isNotEmpty ?? false);
-    final attendanceText = hasReal
-        ? (overview!.attendance == null
-              ? '—'
-              : '${overview.attendance!.round()}%')
-        : '${sampleSummary.attendance.round()}%';
-    final courses = hasReal
-        ? overview!.courses.length
-        : sampleSummary.courses.length;
-    final critical = hasReal
-        ? overview!.riskCount
-        : sampleSummary.courses
-              .where((c) => c.status == CourseStatus.risk)
-              .length;
+    final attendanceText = overview?.attendance == null
+        ? '—'
+        : '${overview!.attendance!.round()}%';
+    final courses = overview?.courses.length ?? 0;
+    final critical = overview?.riskCount ?? 0;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -448,10 +438,8 @@ class _HeaderCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              const _ProfileChip(sampleStudentProgram),
               if (code != null && code!.isNotEmpty)
                 _ProfileChip('Código: $code'),
-              const _ProfileChip('Ciclo $sampleStudentCycle'),
             ],
           ),
         ],

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../justifications/data/justification_data.dart';
 import 'course_stats_data.dart';
-import 'teacher_mock_data.dart';
+import 'teacher_overview_data.dart';
+import '../../attendance/data/attendance_repository.dart';
 
 enum TeacherNotificationCategory { alert, classes, system }
 
@@ -111,205 +113,227 @@ class TeacherNotification {
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-String _nameOf(String courseId, String fallback) =>
-    sampleTeacherCourses.where((c) => c.id == courseId).firstOrNull?.name ??
-    fallback;
+String _hm12(DateTime d) {
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  return '$h:${_two(d.minute)} ${d.hour < 12 ? 'AM' : 'PM'}';
+}
 
-// ---------------------------------------------------------------------------
-// DATOS DE EJEMPLO
-// Los avisos de clase se calculan con el día real de la semana. La alerta
-// crítica usa las estadísticas de ejemplo de Arquitectura de Software. El resto
-// son cifras inventadas. Se reemplazarán por avisos reales (registros por
-// revisar, justificaciones, sesiones cerradas) cuando existan en Firestore.
-// ---------------------------------------------------------------------------
-List<TeacherNotification> _buildSample(DateTime now) {
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+String _when(DateTime d, DateTime now) {
+  if (_sameDay(d, now)) return 'Hoy, ${_hm12(d)}';
+  if (_sameDay(d, now.subtract(const Duration(days: 1))))
+    return 'Ayer, ${_hm12(d)}';
+  return '${_two(d.day)}/${_two(d.month)}, ${_hm12(d)}';
+}
+
+TeacherNotificationGroup _groupOf(DateTime d, DateTime now) => _sameDay(d, now)
+    ? TeacherNotificationGroup.today
+    : TeacherNotificationGroup.earlier;
+
+/// Genera los avisos con los datos reales del docente.
+List<TeacherNotification> _compose(
+  TeacherOverview? ov,
+  List<JustificationInfo> justs,
+  DateTime now,
+) {
   final out = <TeacherNotification>[];
 
-  // Alerta crítica fija.
-  final stats = sampleCourseStats('arq', now);
-  if (stats != null && stats.criticalCount > 0) {
-    final critical = stats.students.where((s) => s.isCritical).toList()
-      ..sort((a, b) => b.absences.compareTo(a.absences));
-    out.add(
-      TeacherNotification(
-        id: 'critical-arq',
-        kind: TeacherNotificationKind.critical,
-        category: TeacherNotificationCategory.alert,
-        group: TeacherNotificationGroup.pinned,
-        title: 'Alerta crítica',
-        body: '',
-        timeLabel: 'Hace 15 min',
-        courseId: 'arq',
-        studentId: critical.first.id,
-        unread: true,
-        critical: CriticalInfo(
-          courseName: stats.name,
-          count: stats.criticalCount,
-          total: stats.students.length,
-          maxAbsences: stats.maxAbsences,
-          students: [
-            for (final s in critical.take(3))
-              CriticalStudent(
-                id: s.id,
-                name: s.name,
-                absences: s.absences,
-                held: s.held,
-                exceeded: s.absences > stats.maxAbsences,
-              ),
-          ],
+  if (ov != null) {
+    // 1) Alerta crítica: el curso con más estudiantes en o sobre el límite.
+    CourseSnapshot? worst;
+    CourseStatsVm? worstStats;
+    var worstCount = 0;
+    for (final c in ov.courses) {
+      final st = c.stats;
+      if (st.criticalCount > worstCount) {
+        worst = c;
+        worstStats = st;
+        worstCount = st.criticalCount;
+      }
+    }
+    if (worst != null && worstStats != null) {
+      final critical = worstStats.students.where((s) => s.isCritical).toList()
+        ..sort((a, b) => b.absences.compareTo(a.absences));
+      out.add(
+        TeacherNotification(
+          id: 'critical-${worst.course.id}-$worstCount',
+          kind: TeacherNotificationKind.critical,
+          category: TeacherNotificationCategory.alert,
+          group: TeacherNotificationGroup.pinned,
+          title: 'Alerta crítica',
+          body: '',
+          timeLabel: 'Actualizado ahora',
+          courseId: worst.course.id,
+          studentId: critical.first.id,
+          unread: true,
+          critical: CriticalInfo(
+            courseName: worst.course.name,
+            count: worstCount,
+            total: worstStats.students.length,
+            maxAbsences: worstStats.maxAbsences,
+            students: [
+              for (final s in critical.take(3))
+                CriticalStudent(
+                  id: s.id,
+                  name: s.name,
+                  absences: s.absences,
+                  held: s.held,
+                  exceeded: s.absences > worstStats.maxAbsences,
+                ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    }
+
+    for (final c in ov.courses) {
+      // 2) Registros que esperan tu decisión.
+      final review = c.sessions.fold<int>(0, (s, x) => s + x.reviewCount);
+      if (review > 0) {
+        out.add(
+          TeacherNotification(
+            id: 'review-${c.course.id}-$review',
+            kind: TeacherNotificationKind.reviewPending,
+            category: TeacherNotificationCategory.alert,
+            group: TeacherNotificationGroup.today,
+            title: 'Registros esperando tu revisión',
+            body:
+                '**$review ${review == 1 ? 'registro' : 'registros'}** de **${c.course.name}** ${review == 1 ? 'quedó' : 'quedaron'} en revisión y ${review == 1 ? 'necesita' : 'necesitan'} tu decisión.',
+            timeLabel: 'Pendiente',
+            courseId: c.course.id,
+            unread: true,
+          ),
+        );
+      }
+    }
+
+    // 3) Sesiones que terminaron en los últimos 3 días.
+    final since = now.subtract(const Duration(days: 3));
+    final recent = <(CourseSnapshot, SessionAttendance)>[];
+    for (final c in ov.courses) {
+      for (final s in c.sessions) {
+        if (!s.endsAt.isAfter(now) && s.endsAt.isAfter(since))
+          recent.add((c, s));
+      }
+    }
+    recent.sort((a, b) => b.$2.endsAt.compareTo(a.$2.endsAt));
+
+    for (final (c, s) in recent.take(4)) {
+      final ids = c.enrolledIds;
+      final total = ids.length;
+      final present = s.presentIds.where(ids.contains).length;
+      final pct = total == 0 ? 0 : (present * 100 / total).round();
+      final key = '${c.course.id}-${s.startsAt.millisecondsSinceEpoch}';
+
+      out.add(
+        TeacherNotification(
+          id: 'closed-$key',
+          kind: TeacherNotificationKind.sessionClosed,
+          category: TeacherNotificationCategory.classes,
+          group: _groupOf(s.endsAt, now),
+          title: 'Sesión finalizada',
+          body: total == 0
+              ? '**${c.course.name}**: no hay estudiantes matriculados en el curso.'
+              : '**${c.course.name}**: **$present de $total** estudiantes con asistencia confirmada.',
+          timeLabel: _when(s.endsAt, now),
+          courseId: c.course.id,
+          chips: total == 0
+              ? const []
+              : [
+                  TeacherChip('$pct% asistencia', TeacherChipTone.green),
+                  TeacherChip(
+                    '${total - present} sin confirmar',
+                    TeacherChipTone.blue,
+                  ),
+                ],
+        ),
+      );
+
+      if (s.offlineCount > 0) {
+        out.add(
+          TeacherNotification(
+            id: 'offline-$key',
+            kind: TeacherNotificationKind.offlineSynced,
+            category: TeacherNotificationCategory.system,
+            group: _groupOf(s.endsAt, now),
+            title: 'Registros sin conexión validados',
+            body:
+                'Se validaron **${s.offlineCount} ${s.offlineCount == 1 ? 'registro' : 'registros'}** hechos sin conexión en **${c.course.name}**.',
+            timeLabel: _when(s.endsAt, now),
+            courseId: c.course.id,
+          ),
+        );
+      }
+    }
   }
 
-  // Clases de hoy (según el día real de la semana).
-  for (final c in sampleTeacherCourses) {
-    if (!c.hasClassOn(now.weekday)) continue;
-    out.add(
-      TeacherNotification(
-        id: 'today-${c.id}',
-        kind: TeacherNotificationKind.classToday,
-        category: TeacherNotificationCategory.classes,
-        group: TeacherNotificationGroup.today,
-        title: '¡Hoy tienes clase!',
-        body:
-            '**${c.name}** empieza a las **${c.startTime12}** en ${c.room}. Inicia la sesión de asistencia cuando comience la clase.',
-        timeLabel: 'Hoy',
-        courseId: c.id,
-        unread: true,
-      ),
-    );
+  // 4) Justificaciones pendientes, por curso.
+  final byCourse = <String, List<JustificationInfo>>{};
+  for (final j in justs) {
+    if (j.status == JustificationStatus.pending) {
+      byCourse.putIfAbsent(j.courseId, () => []).add(j);
+    }
   }
-
-  // Registros por revisar.
-  out.add(
-    TeacherNotification(
-      id: 'review-arq',
-      kind: TeacherNotificationKind.reviewPending,
-      category: TeacherNotificationCategory.alert,
-      group: TeacherNotificationGroup.today,
-      title: 'Registros esperando tu revisión',
-      body:
-          '**5 registros** de **${_nameOf('arq', 'Arquitectura de Software')}** necesitan tu decisión: se hicieron sin conexión o desde un mismo dispositivo.',
-      timeLabel: 'Hace 40 min',
-      courseId: 'arq',
-      unread: true,
-    ),
-  );
-
-  // Recordatorios de mañana (según el día real de la semana).
-  final tomorrow = now.add(const Duration(days: 1));
-  for (final c in sampleTeacherCourses) {
-    if (!c.hasClassOn(tomorrow.weekday)) continue;
+  for (final entry in byCourse.entries) {
+    final list = entry.value;
+    final newest = list
+        .map((j) => j.createdAt ?? now)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
     out.add(
       TeacherNotification(
-        id: 'tomorrow-${c.id}',
-        kind: TeacherNotificationKind.classTomorrow,
-        category: TeacherNotificationCategory.classes,
-        group: TeacherNotificationGroup.today,
-        title: 'Recordatorio de clase próxima',
-        body:
-            'Mañana tienes **${c.name}** a las ${_two(c.startHour)}:${_two(c.startMinute)} en ${c.room}.',
-        timeLabel: 'Para mañana',
-        courseId: c.id,
-      ),
-    );
-  }
-
-  // Justificaciones pendientes (el número sale del curso de ejemplo).
-  final sod = sampleTeacherCourses.where((c) => c.id == 'sod').firstOrNull;
-  final pending = sod?.pendingJustifications ?? 0;
-  if (sod != null && pending > 0) {
-    out.add(
-      TeacherNotification(
-        id: 'justify-sod',
+        id: 'justify-${entry.key}-${list.length}',
         kind: TeacherNotificationKind.justifyPending,
         category: TeacherNotificationCategory.alert,
-        group: TeacherNotificationGroup.earlier,
+        group: _groupOf(newest, now),
         title: 'Justificaciones pendientes',
         body:
-            'Tienes **$pending ${pending == 1 ? 'justificación médica' : 'justificaciones médicas'}** por revisar en **${sod.name}**. Los estudiantes esperan tu respuesta.',
-        timeLabel: 'Ayer, 11:20 AM',
-        courseId: 'sod',
+            'Tienes **${list.length} ${list.length == 1 ? 'justificación' : 'justificaciones'}** por revisar en **${list.first.courseName}**. Los estudiantes esperan tu respuesta.',
+        timeLabel: _when(newest, now),
+        courseId: entry.key,
         unread: true,
       ),
     );
   }
-
-  out.addAll([
-    TeacherNotification(
-      id: 'late-eda',
-      kind: TeacherNotificationKind.lateSync,
-      category: TeacherNotificationCategory.alert,
-      group: TeacherNotificationGroup.earlier,
-      title: 'Registros tardíos en revisión',
-      body:
-          '**2 registros** de **${_nameOf('eda', 'Estructuras de Datos y Algoritmos')}** llegaron después de 24 horas y pasaron a revisión manual.',
-      timeLabel: 'Ayer, 9:15 AM',
-      courseId: 'eda',
-      unread: true,
-    ),
-    TeacherNotification(
-      id: 'closed-eda',
-      kind: TeacherNotificationKind.sessionClosed,
-      category: TeacherNotificationCategory.classes,
-      group: TeacherNotificationGroup.earlier,
-      title: 'Sesión finalizada',
-      body:
-          '**${_nameOf('eda', 'Estructuras de Datos y Algoritmos')}**: **31 de 34** estudiantes registraron asistencia.',
-      timeLabel: 'Ayer, 10:05 AM',
-      courseId: 'eda',
-      chips: const [
-        TeacherChip('91% asistencia', TeacherChipTone.green),
-        TeacherChip('3 sin registro', TeacherChipTone.blue),
-      ],
-    ),
-    TeacherNotification(
-      id: 'offline-arq',
-      kind: TeacherNotificationKind.offlineSynced,
-      category: TeacherNotificationCategory.system,
-      group: TeacherNotificationGroup.earlier,
-      title: 'Registros sin conexión validados',
-      body:
-          'Se validaron automáticamente **12 registros** hechos sin conexión en **${_nameOf('arq', 'Arquitectura de Software')}**.',
-      timeLabel: 'Hace 2 días',
-      courseId: 'arq',
-    ),
-    TeacherNotification(
-      id: 'weekly',
-      kind: TeacherNotificationKind.weeklySummary,
-      category: TeacherNotificationCategory.system,
-      group: TeacherNotificationGroup.earlier,
-      title: 'Resumen semanal',
-      body:
-          'Tu asistencia promedio fue de **${sampleTeacher.globalAttendance}%** en tus cursos (+1.2 puntos frente a la semana anterior).',
-      timeLabel: 'Hace 3 días',
-    ),
-  ]);
 
   return out;
 }
 
 class TeacherNotificationsNotifier extends Notifier<List<TeacherNotification>> {
-  @override
-  List<TeacherNotification> build() => _buildSample(DateTime.now());
+  /// Avisos que el docente ya leyó (se conserva mientras la app esté abierta).
+  final Set<String> _read = {};
 
-  void markRead(String id) {
-    state = [
-      for (final n in state)
-        (n.id == id && n.unread) ? n.copyWith(unread: false) : n,
+  @override
+  List<TeacherNotification> build() {
+    final overview = ref.watch(teacherOverviewProvider).value;
+    final justs =
+        ref.watch(teacherJustificationsProvider).value ??
+        const <JustificationInfo>[];
+    return [
+      for (final n in _compose(overview, justs, DateTime.now()))
+        n.copyWith(unread: !_read.contains(n.id)),
     ];
   }
 
+  void markRead(String id) {
+    _read.add(id);
+    state = [for (final n in state) n.id == id ? n.copyWith(unread: false) : n];
+  }
+
   void markAllRead() {
-    state = [for (final n in state) n.unread ? n.copyWith(unread: false) : n];
+    for (final n in state) {
+      _read.add(n.id);
+    }
+    state = [for (final n in state) n.copyWith(unread: false)];
   }
 }
 
 final teacherNotificationsProvider =
-    NotifierProvider<TeacherNotificationsNotifier, List<TeacherNotification>>(
-      TeacherNotificationsNotifier.new,
-    );
+    NotifierProvider.autoDispose<
+      TeacherNotificationsNotifier,
+      List<TeacherNotification>
+    >(TeacherNotificationsNotifier.new);
 
 int teacherUnreadCount(List<TeacherNotification> list) =>
     list.where((n) => n.unread).length;

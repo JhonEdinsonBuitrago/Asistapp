@@ -6,10 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/name_utils.dart';
-import '../../student/data/student_mock_data.dart';
 import '../data/attendance_models.dart';
 import '../data/attendance_repository.dart';
 import 'attendance_success_view.dart';
+import '../../student/data/student_courses_data.dart';
 
 const _mint = Color(0xFFD7F5EA);
 const _amber = Color(0xFFB45309);
@@ -109,7 +109,11 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
   bool _graceOver = false;
   bool _retrying = false;
 
-  CourseDetail? get _course => courseDetailById(widget.courseId);
+  EnrolledCourse? get _enrolled => ref
+      .watch(myEnrolledCoursesProvider)
+      .value
+      ?.where((c) => c.id == widget.courseId)
+      .firstOrNull;
 
   @override
   void initState() {
@@ -248,13 +252,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
     }
   }
 
-  String get _reference {
-    final n = ((_claim?.scannedAt ?? 0) % 100000).toString().padLeft(5, '0');
-    final s = widget.sessionId.length >= 3
-        ? widget.sessionId.substring(0, 3).toUpperCase()
-        : 'XXX';
-    return 'OFF-$n-$s';
-  }
+  String get _reference => widget.sessionId;
 
   void _snack(String text) {
     ScaffoldMessenger.of(context)
@@ -381,11 +379,14 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
       return AttendanceSuccessView(
         courseId: widget.courseId,
         courseName: widget.courseName,
+
         sessionId: widget.sessionId,
         room: widget.room,
         claim: _claim!,
         onBack: _back,
         onDetails: _showDetails,
+        courseCode: _enrolled?.code,
+        teacherName: _enrolled?.teacherName,
       );
     }
 
@@ -562,16 +563,14 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
 
   Widget _buildCard(_PhaseView v) {
     final c = _claim;
-    final course = _course;
+    final course = _enrolled;
+    final name = course?.name ?? widget.courseName ?? 'Clase';
+    final code = course?.code ?? '';
+    final teacher = (course?.teacherName ?? '').trim();
     final scanned = c == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(c.scannedAt);
     final room = widget.room;
-
-    final cleanTeacher = course?.teacherName.replaceFirst(
-      RegExp(r'^[A-Za-zñÑ]{2,4}\.\s+'),
-      '',
-    );
 
     return Container(
       decoration: const BoxDecoration(
@@ -589,7 +588,6 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Estado
             Container(
               color: _soft,
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -635,7 +633,6 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
               color: v.color,
               backgroundColor: const Color(0xFFE6ECF7),
             ),
-            // Contenido
             Container(
               color: Colors.white,
               padding: const EdgeInsets.all(16),
@@ -660,7 +657,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              course?.name ?? widget.courseName ?? 'Clase',
+                              name,
                               style: const TextStyle(
                                 fontSize: 21,
                                 fontWeight: FontWeight.w800,
@@ -668,10 +665,10 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                                 height: 1.2,
                               ),
                             ),
-                            if (course != null) ...[
+                            if (code.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
-                                'Código: ${course.code}',
+                                'Código: $code',
                                 style: const TextStyle(
                                   fontSize: 12.5,
                                   color: AppColors.textMuted,
@@ -700,8 +697,8 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  if (course != null)
+                  if (teacher.isNotEmpty) ...[
+                    const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: const BoxDecoration(
@@ -714,7 +711,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                             radius: 18,
                             backgroundColor: _blueBg,
                             child: Text(
-                              initialsOf(cleanTeacher ?? ''),
+                              initialsOf(teacher),
                               style: const TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w800,
@@ -735,7 +732,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                                   ),
                                 ),
                                 Text(
-                                  course.teacherName,
+                                  'Prof. $teacher',
                                   style: const TextStyle(
                                     fontSize: 14.5,
                                     fontWeight: FontWeight.w800,
@@ -748,6 +745,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
                         ],
                       ),
                     ),
+                  ],
                   if (scanned != null) ...[
                     const SizedBox(height: 14),
                     _InfoRow(
@@ -821,7 +819,7 @@ class _AttendanceSavedScreenState extends ConsumerState<AttendanceSavedScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'ID Transacción: $_reference',
+          'ID de la sesión: $_reference',
           style: const TextStyle(fontSize: 11, color: Color(0xFF8A97A6)),
         ),
       ],

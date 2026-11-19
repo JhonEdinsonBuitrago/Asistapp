@@ -13,8 +13,6 @@ import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/local_session_store.dart';
 import '../data/course_repository.dart';
 import '../data/enrollment_repository.dart';
-import '../data/teacher_course_detail_data.dart';
-import '../data/teacher_mock_data.dart';
 
 const _teal = Color(0xFF066A5C);
 const _mint = Color(0xFFD7F5EA);
@@ -30,9 +28,6 @@ const _shadow = [
 ];
 
 String _two(int n) => n.toString().padLeft(2, '0');
-
-String _timeRange(TeacherCourse c) =>
-    '${_two(c.startHour)}:${_two(c.startMinute)} - ${_two(c.endHour)}:${_two(c.endMinute)}';
 
 class _CourseVm {
   const _CourseVm({
@@ -90,9 +85,7 @@ class _SessionSetupScreenState extends ConsumerState<SessionSetupScreen> {
   void initState() {
     super.initState();
     _loadActive();
-    final isSample =
-        sampleCourseDetail(widget.courseId, DateTime.now()) != null;
-    if (!isSample) _loadCount();
+    _loadCount();
   }
 
   void _snack(String text) {
@@ -126,25 +119,6 @@ class _SessionSetupScreenState extends ConsumerState<SessionSetupScreen> {
   }
 
   _CourseVm? _resolve() {
-    final sample = sampleCourseDetail(widget.courseId, DateTime.now());
-    if (sample != null) {
-      final tc = sampleTeacherCourses
-          .where((c) => c.id == widget.courseId)
-          .firstOrNull;
-      return _CourseVm(
-        name: sample.name,
-        code: sample.code,
-        section: sample.section,
-        room: sample.room ?? '',
-        schedule: tc == null ? '' : _timeRange(tc),
-        enrolled: sample.students.length,
-        sessionNumber: sample.heldSessions + 1,
-        total: sample.totalSessions,
-        isSample: true,
-        isActive: true,
-      );
-    }
-
     final real = ref
         .watch(myCoursesProvider)
         .value

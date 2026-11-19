@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/name_utils.dart';
 import '../data/student_courses_data.dart';
-import '../data/student_mock_data.dart';
 import '../data/student_profile_data.dart';
 import 'widgets/student_widgets.dart';
 import '../../justifications/data/justification_data.dart';
@@ -78,8 +77,6 @@ class _StudentHomeTabState extends ConsumerState<StudentHomeTab> {
       children = async.hasError ? _errorChildren() : _loadingChildren();
     } else if (overview.courses.isNotEmpty) {
       children = _realChildren(overview, fullName, profile);
-    } else if (kShowSampleWhenEmpty) {
-      children = _sampleChildren(fullName);
     } else {
       children = _emptyChildren(fullName);
     }
@@ -217,87 +214,6 @@ class _StudentHomeTabState extends ConsumerState<StudentHomeTab> {
               await context.push('/student/course/${c.course.id}');
               ref.invalidate(studentOverviewProvider);
             },
-          ),
-        ),
-    ];
-  }
-
-  // ------------------------------ Cursos de ejemplo ------------------------------
-
-  List<Widget> _sampleChildren(String fullName) {
-    final summary = sampleSummary;
-    final courses = _filter == 0
-        ? summary.courses
-        : summary.courses.where((c) => c.status != CourseStatus.safe).toList();
-
-    return [
-      _Greeting(
-        name: firstNameOf(fullName),
-        initials: initialsOf(fullName),
-        program: summary.program,
-        onCalendar: () => _soon('Calendario académico'),
-      ),
-      const SizedBox(height: 14),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _amberBg,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.science_outlined, size: 19, color: _amberFg),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Datos de ejemplo: aún no estás matriculado en ningún curso. Cuando un docente te matricule, tus cursos reales aparecerán aquí.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.4,
-                  color: Color(0xFF7A4A12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 14),
-      AttendanceSummaryCard(
-        summary: summary,
-        onScan: () => _soon('Escáner de QR'),
-      ),
-      const SizedBox(height: 14),
-      JustificationBanner(
-        hoursLeft: summary.justifyHours,
-        onJustify: () => _soon('Justificación de inasistencias'),
-      ),
-      const SizedBox(height: 22),
-      _CoursesHeader(count: summary.courses.length),
-      const SizedBox(height: 12),
-      CourseFilterTabs(
-        index: _filter,
-        total: summary.courses.length,
-        riskCount: summary.riskCount,
-        onChanged: (i) => setState(() => _filter = i),
-      ),
-      const SizedBox(height: 14),
-      if (courses.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 32),
-          child: Center(
-            child: Text(
-              'No tienes cursos en riesgo.',
-              style: TextStyle(color: AppColors.textMuted),
-            ),
-          ),
-        ),
-      for (final c in courses)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: CourseCard(
-            course: c,
-            onTap: () => context.push('/student/course/${c.id}'),
           ),
         ),
     ];

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../data/notifications_data.dart';
-import '../data/student_mock_data.dart';
 
 const _red = Color(0xFFD92D20);
 const _redBg = Color(0xFFFCE8E8);
@@ -338,13 +337,12 @@ class _CriticalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Las cifras salen del curso (mismos datos que el detalle y el historial).
-    final d = courseDetailById(n.courseId ?? '');
-    final pct = (d == null || d.scheduled == 0)
-        ? 0
-        : (d.absences * 100 / d.scheduled).round();
-    final limit = d?.limitPercent ?? 20;
-    final remaining = d?.remainingAbsences ?? 1;
-    final name = d?.name ?? 'tu curso';
+    final info = n.critical;
+    if (info == null) return const SizedBox.shrink();
+    final pct = info.held == 0 ? 0 : (info.absences * 100 / info.held).round();
+    const limit = 20;
+    final remaining = info.maxAbsences - info.absences;
+    final name = info.courseName;
     final ratio = (pct / limit).clamp(0.0, 1.0).toDouble();
 
     final String explanation;

@@ -10,7 +10,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/name_utils.dart';
 import '../data/course_repository.dart';
 import '../data/enrollment_repository.dart';
-import '../data/teacher_course_detail_data.dart';
 
 const _teal = Color(0xFF066A5C);
 const _mint = Color(0xFFD7F5EA);
@@ -143,17 +142,6 @@ class _AddStudentsScreenState extends ConsumerState<AddStudentsScreen> {
   }
 
   _CourseInfo? _resolveCourse() {
-    final sample = sampleCourseDetail(widget.courseId, DateTime.now());
-    if (sample != null) {
-      return _CourseInfo(
-        name: sample.name,
-        code: sample.code,
-        section: sample.section,
-        isSample: true,
-        isActive: true,
-        sampleCount: sample.students.length,
-      );
-    }
     final real = ref
         .watch(myCoursesProvider)
         .value

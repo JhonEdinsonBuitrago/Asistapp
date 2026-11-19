@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../attendance/data/attendance_models.dart';
-import 'student_mock_data.dart' show CourseStatus;
+
+enum CourseStatus { safe, warning, risk }
 
 /// Curso en el que el estudiante está matriculado.
 class EnrolledCourse {

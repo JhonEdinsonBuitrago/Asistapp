@@ -475,14 +475,6 @@ class _StudentAttendanceDetailScreenState
                     ],
                   ),
                 ),
-              const Text(
-                'Datos de ejemplo: el módulo de justificaciones llegará más adelante.',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: AppColors.textMuted,
-                ),
-              ),
             ],
           ),
         ),
@@ -550,13 +542,6 @@ class _StudentAttendanceDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final sample = sampleStudentDetail(
-      widget.courseId,
-      widget.studentId,
-      DateTime.now(),
-    );
-    if (sample != null) return _scaffold(_content(sample));
-
     final coursesAsync = ref.watch(myCoursesProvider);
     final course = coursesAsync.value
         ?.where((c) => c.id == widget.courseId)

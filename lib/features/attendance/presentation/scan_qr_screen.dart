@@ -10,7 +10,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/services/clock_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
-import '../../student/data/student_mock_data.dart';
 import '../data/attendance_models.dart';
 import '../data/attendance_repository.dart';
 
@@ -44,8 +43,6 @@ class _ScanQrScreenState extends ConsumerState<ScanQrScreen>
   bool _processing = false;
   bool _torch = false;
   DateTime _lastWarn = DateTime.fromMillisecondsSinceEpoch(0);
-
-  CourseDetail? get _course => courseDetailById(widget.courseId);
 
   bool get _active =>
       _session != null && _session!.endsAt.isAfter(DateTime.now());
@@ -382,10 +379,7 @@ class _ScanQrScreenState extends ConsumerState<ScanQrScreen>
   }
 
   Widget _buildSessionChip(bool active) {
-    final course = _course;
-    final title = course != null
-        ? '${course.name} (${course.code})'
-        : (_session?.courseName ?? 'Escáner de asistencia');
+    final title = _session?.courseName ?? 'Escáner de asistencia';
     final subtitle = _loading
         ? 'Buscando la sesión…'
         : (active

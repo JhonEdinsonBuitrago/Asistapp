@@ -21,6 +21,9 @@ class SessionAttendance {
     required this.startsAt,
     required this.endsAt,
     required this.presentIds,
+    this.reviewCount = 0,
+    this.pendingCount = 0,
+    this.offlineCount = 0,
   });
 
   final DateTime startsAt;
@@ -28,6 +31,11 @@ class SessionAttendance {
 
   /// Estudiantes con asistencia confirmada en esa sesión.
   final Set<String> presentIds;
+
+  /// Registros en revisión, por validar y confirmados sin conexión.
+  final int reviewCount;
+  final int pendingCount;
+  final int offlineCount;
 }
 
 class StudentSessionRecord {
@@ -248,13 +256,33 @@ class AttendanceRepository {
         final claims = await _sessions
             .doc(s.id)
             .collection('claims')
-            .where('status', isEqualTo: 'validated')
             .get()
             .timeout(const Duration(seconds: 15));
+
+        final present = <String>{};
+        var review = 0;
+        var pending = 0;
+        var offline = 0;
+        for (final d in claims.docs) {
+          final data = d.data();
+          switch (data['status']) {
+            case 'validated':
+              present.add(d.id);
+              if (data['timeVerified'] != true) offline++;
+            case 'review':
+              review++;
+            case 'pending':
+              pending++;
+          }
+        }
+
         return SessionAttendance(
           startsAt: s.startsAt,
           endsAt: s.endsAt,
-          presentIds: claims.docs.map((d) => d.id).toSet(),
+          presentIds: present,
+          reviewCount: review,
+          pendingCount: pending,
+          offlineCount: offline,
         );
       }),
     );

@@ -4,7 +4,6 @@ import '../../attendance/data/attendance_repository.dart';
 import 'course_repository.dart';
 import 'enrollment_repository.dart';
 import 'teacher_course_detail_data.dart';
-import 'teacher_mock_data.dart';
 
 enum StatsRisk { exceeded, limit, watch, early, regular, optimal }
 
@@ -133,78 +132,6 @@ class CourseStatsVm {
   int get inOrderCount => students.where((s) => s.isInOrder).length;
   double get progress =>
       total == 0 ? 0 : (held / total).clamp(0.0, 1.0).toDouble();
-}
-
-// ---------------------------------------------------------------------------
-// DATOS DE EJEMPLO
-// ---------------------------------------------------------------------------
-const _samplePending = <String, int>{'a5': 2}; // Diego Palacios (mockup)
-
-const _arqWeekly = <double?>[96, null, 97, 88, 80, 96, null, 88, 92, 99];
-
-List<double?> _generatedWeekly(int weeks, double base, int seed) {
-  const pattern = [4.0, 5.0, 1.0, -3.0, -8.0, 4.0, 2.0, -4.0, 1.0, 6.0];
-  return List<double?>.generate(
-    weeks,
-    (i) => (base + pattern[(i + seed) % pattern.length])
-        .clamp(55.0, 100.0)
-        .toDouble(),
-  );
-}
-
-CourseStatsVm? sampleCourseStats(String id, DateTime now) {
-  final d = sampleCourseDetail(id, now);
-  final course = sampleTeacherCourses.where((c) => c.id == id).firstOrNull;
-  if (d == null || course == null) return null;
-
-  final held = d.heldSessions;
-  final students = [
-    for (final s in d.students)
-      StatsStudent(
-        id: s.id,
-        name: s.name,
-        code: s.code,
-        absences: s.absences,
-        held: held,
-        maxAbsences: d.maxAbsences,
-        pendingJustifications: _samplePending[s.id] ?? 0,
-      ),
-  ];
-
-  final marks = students.length * held;
-  final rate = d.attendance ?? 0.0;
-  final absentMarks = (marks * (1 - rate / 100)).round();
-  final justified = (absentMarks * 2 / 3).round();
-
-  final perWeek = course.weekdays.isEmpty ? 1 : course.weekdays.length;
-  final week = held ~/ perWeek + 1;
-  final seed = id.codeUnits.fold<int>(0, (a, b) => a + b) % 7;
-  final all = id == 'arq' ? _arqWeekly : _generatedWeekly(week, rate, seed);
-  final start = all.length > 10 ? all.length - 10 : 0;
-
-  return CourseStatsVm(
-    id: id,
-    name: d.name,
-    code: d.code,
-    section: d.section,
-    cycle: d.cycle,
-    faculty: sampleTeacher.faculty,
-    week: week,
-    weekActive: true,
-    held: held,
-    total: d.totalSessions,
-    maxAbsences: d.maxAbsences,
-    marks: marks,
-    attendedMarks: marks - absentMarks,
-    justified: justified,
-    unjustified: absentMarks - justified,
-    rate: rate,
-    facultyDelta: d.facultyDelta,
-    weekly: all.sublist(start),
-    weeklyStart: start + 1,
-    students: students,
-    isSample: true,
-  );
 }
 
 // ---------------------------------------------------------------------------
